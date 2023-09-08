@@ -16,9 +16,12 @@ variables:
 steps:
 
 - task: NuGetToolInstaller@1
-  inputs:
-    versionSpec: 6.7.0
 
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '7.0.x'
+    
 - task: NuGetCommand@2
   inputs:
     command: 'restore'
