@@ -1,0 +1,63 @@
+# ASP.NET
+# Build and test ASP.NET projects.
+# Add steps that publish symbols, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/apps/aspnet/build-aspnet-4
+
+trigger:
+- master
+
+pool:
+  vmImage: 'windows-2019'
+
+variables:
+- group: DetaVariableGroup
+- group:  BuildVariablesGroup
+
+steps:
+
+- task: NuGetToolInstaller@1
+
+- task: NuGetCommand@2
+  inputs:
+    command: 'restore'
+    restoreSolution: '**/*.sln'
+    feedsToUse: 'select'
+
+- task: VSBuild@1
+  inputs:
+    solution: '$(solution)'
+    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)" /p:TargetFrameworkVersion=v4.7.2'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+    
+- task: CopyFiles@2
+  displayName: 'Copy Files to: $(build.artifactstagingdirectory)'
+  inputs:
+    SourceFolder: '$(system.defaultworkingdirectory)'
+    Contents: '**\bin\$(BuildConfiguration)\**'
+    TargetFolder: '$(build.artifactstagingdirectory)'
+  condition: succeededOrFailed()
+
+- task: PowerShell@2
+  displayName: 'Move File to Deta'
+  inputs:
+    targetType: 'inline'
+    script: |
+      $Files = (Get-ChildItem -Filter *.exe -Path $(build.artifactstagingdirectory) -Recurse).FullName
+      $Date = Get-Date -Format ddMMyyyy
+      $FolderName = $Date
+      $jsonBase = @{}   
+        
+      $UploadHeaders = @{
+          "X-API-Key" = $env:UploadHeadersAPI
+      }
+
+      foreach ($NewName in $Files)
+      {
+        echo $NewName
+        $UploadURL = "https://drive.deta.sh/v1/$env:UploadProjectKey/Uploads/files?name=$("/"+$FolderName+"/"+$($NewName.split('\')[7]))"
+        Invoke-WebRequest -Uri $UploadURL -Headers $UploadHeaders -Infile $NewName -Method POST
+      }
+  env:
+    UploadHeadersAPI: $(UploadHeadersAPI)
+    UploadProjectKey: $(UploadProjectKey)
