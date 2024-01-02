@@ -73,7 +73,7 @@ steps:
           # Construct the new file NewName
           $newFilePath = Join-Path (Split-Path $NewName) $newFileName
 
-        Write-Host "Working on: $File"
+        Write-Host "Working on: $newFilePath"
         $boundary = [System.Guid]::NewGuid().ToString()
 
         # Get file content as bytes
