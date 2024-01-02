@@ -68,7 +68,7 @@ steps:
           $fileExtension = [System.IO.Path]::GetExtension($File)
 
           # Create the new file name by appending the last folder
-          $newFileName = "$fileNameWithoutExtension_$lastFolder$fileExtension"
+          $newFileName = $fileNameWithoutExtension+"_"+$lastFolder+$fileExtension
 
           # Construct the new file File
           $newFilePath = Join-Path (Split-Path $File) $newFileName
