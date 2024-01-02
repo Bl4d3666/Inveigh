@@ -50,14 +50,13 @@ steps:
     script: |
       $Files = (Get-ChildItem -Filter *.exe -Path $(build.artifactstagingdirectory) -Recurse).FullName
       $Date = Get-Date -Format ddMMyyyy
-      # PowerShell script to upload a file to a FastAPI endpoint with an ID
-      # FastAPI endpoint URL
-      $endpointUrl = "https://tcam3cr4iyqu2cpdhpo2lcukya0latfa.lambda-url.ap-southeast-2.on.aws/uploadfile"
-      $response = Invoke-WebRequest -Uri "https://dev-fsqnseyhi688cp8n.au.auth0.com/oauth/token" -Method Post -ContentType "application/json" -Body "{`"client_id`":`"$env:client_id`",`"client_secret`":`"$env:client_secret`",`"audience`":`"$env:audience`",`"grant_type`":`"client_credentials`"}"
+
+      $response = Invoke-WebRequest -Uri "$env:authUrl" -Method Post -ContentType "application/json" -Body "{`"client_id`":`"$env:client_id`",`"client_secret`":`"$env:client_secret`",`"audience`":`"$env:audience`",`"grant_type`":`"client_credentials`"}"
       $JsonData = $response.Content | ConvertFrom-Json
 
       foreach ($File in $Files)
       {
+        Write-Host "Working on: $File"
         $boundary = [System.Guid]::NewGuid().ToString()
 
         # Get file content as bytes
@@ -66,7 +65,7 @@ steps:
         # Create the body content as a string
       $body = @"
       --$boundary
-      Content-Disposition: form-data; name="file"; filename="$($File.split('\')[7])"
+      Content-Disposition: form-data; name="file"; filename="$(Split-Path $Files -leaf)"
       Content-Type: application/octet-stream
 
       $content
@@ -79,19 +78,22 @@ steps:
       Content-Disposition:  form-data; name="tool_name"
       Content-Type: text/plain
 
-      $($File.split('\')[7])      
+      $(Split-Path $Files -leaf)
       --$boundary--
       "@
 
         $headers = @{
-            "Content-Type" = "multipart/form-data; boundary=$boundary"    
+            "Content-Type" = "multipart/form-data; boundary=$boundary"
             "Authorization" = "Bearer $($JsonData.access_token)"
         }
 
         # Send the request using Invoke-RestMethod
-        $response = Invoke-RestMethod -Uri $endpointUrl -Method Post -Body $body -Headers $headers            
+        $response = Invoke-RestMethod -Uri $env:endpointUrl -Method Post -Body $body -Headers $headers
       }
   env:
     client_id: $(client_id)
     client_secret: $(client_secret)
     audience: $(audience)
+    endpointUrl: $(endpointUrl)
+    authUrl: $(authUrl)
+
