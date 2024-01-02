@@ -56,7 +56,7 @@ steps:
 
       foreach ($File in $Files)
       {
-        if ($filePath.Count -ge 2)
+        if ($Files.Count -ge 2)
         {
           # Get the last folder in the path
           $lastFolder = (Get-Item $NewName).PSParentPath | Split-Path -Leaf
