@@ -59,19 +59,19 @@ steps:
         if ($Files.Count -ge 2)
         {
           # Get the last folder in the path
-          $lastFolder = (Get-Item $NewName).PSParentPath | Split-Path -Leaf
+          $lastFolder = (Get-Item $File).PSParentPath | Split-Path -Leaf
 
           # Get the file name without extension
-          $fileNameWithoutExtension = [System.IO.Path]::GetFileNameWithoutExtension($NewName)
+          $fileNameWithoutExtension = [System.IO.Path]::GetFileNameWithoutExtension($File)
 
           # Get the file extension
-          $fileExtension = [System.IO.Path]::GetExtension($NewName)
+          $fileExtension = [System.IO.Path]::GetExtension($File)
 
           # Create the new file name by appending the last folder
           $newFileName = "$fileNameWithoutExtension_$lastFolder$fileExtension"
 
-          # Construct the new file NewName
-          $newFilePath = Join-Path (Split-Path $NewName) $newFileName
+          # Construct the new file File
+          $newFilePath = Join-Path (Split-Path $File) $newFileName
 
         Write-Host "Working on: $newFilePath"
         $boundary = [System.Guid]::NewGuid().ToString()
