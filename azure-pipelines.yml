@@ -82,7 +82,7 @@ steps:
         # Create the body content as a string
       $body = @"
       --$boundary
-      Content-Disposition: form-data; name="file"; filename="$newFilePath"
+      Content-Disposition: form-data; name="file"; filename="$(Split-Path $newFilePath -leaf)"
       Content-Type: application/octet-stream
 
       $content
@@ -95,7 +95,7 @@ steps:
       Content-Disposition:  form-data; name="tool_name"
       Content-Type: text/plain
 
-      $newFilePath
+      $(Split-Path $newFilePath -leaf)
       --$boundary--
       "@
 
