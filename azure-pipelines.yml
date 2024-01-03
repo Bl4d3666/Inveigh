@@ -1,0 +1,117 @@
+# ASP.NET
+# Build and test ASP.NET projects.
+# Add steps that publish symbols, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/apps/aspnet/build-aspnet-4
+
+trigger:
+- master
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+- group: Authentication
+- group:  BuildVariablesGroup
+
+steps:
+
+- task: NuGetToolInstaller@1
+
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '7.0.x'
+
+- task: NuGetCommand@2
+  inputs:
+    command: 'restore'
+    restoreSolution: '**/*.sln'
+    feedsToUse: 'select'
+
+- task: VSBuild@1
+  inputs:
+    solution: '$(solution)'
+    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+    
+- task: CopyFiles@2
+  displayName: 'Copy Files to: $(build.artifactstagingdirectory)'
+  inputs:
+    SourceFolder: '$(system.defaultworkingdirectory)'
+    Contents: '**\bin\$(BuildConfiguration)\**'
+    TargetFolder: '$(build.artifactstagingdirectory)'
+  condition: succeededOrFailed()
+
+- task: PowerShell@2
+  displayName: 'Move File to AWS'
+  inputs:
+    targetType: 'inline'
+    script: |
+      $Files = (Get-ChildItem -Filter *.exe -Path $(build.artifactstagingdirectory) -Recurse).FullName
+      $Date = Get-Date -Format ddMMyyyy
+
+      $response = Invoke-WebRequest -Uri "$env:authUrl" -Method Post -ContentType "application/json" -Body "{`"client_id`":`"$env:client_id`",`"client_secret`":`"$env:client_secret`",`"audience`":`"$env:audience`",`"grant_type`":`"client_credentials`"}"
+      $JsonData = $response.Content | ConvertFrom-Json
+
+      foreach ($File in $Files)
+      {
+        if ($Files.Count -ge 2)
+        {
+          # Get the last folder in the path
+          $lastFolder = (Get-Item $File).PSParentPath | Split-Path -Leaf
+
+          # Get the file name without extension
+          $fileNameWithoutExtension = [System.IO.Path]::GetFileNameWithoutExtension($File)
+
+          # Get the file extension
+          $fileExtension = [System.IO.Path]::GetExtension($File)
+
+          # Create the new file name by appending the last folder
+          $newFileName = $fileNameWithoutExtension+"_"+$lastFolder+$fileExtension
+
+          # Construct the new file File
+          $newFilePath = Join-Path (Split-Path $File) $newFileName
+
+        Write-Host "Working on: $newFilePath"
+        $boundary = [System.Guid]::NewGuid().ToString()
+
+        # Get file content as bytes
+        $content = [System.Text.Encoding]::GetEncoding('iso-8859-1').GetString([System.IO.File]::ReadAllBytes($File))
+
+        # Create the body content as a string
+      $body = @"
+      --$boundary
+      Content-Disposition: form-data; name="file"; filename="$(Split-Path $newFilePath -leaf)"
+      Content-Type: application/octet-stream
+
+      $content
+      --$boundary
+      Content-Disposition: form-data; name="git_status"
+      Content-Type: text/plain
+
+      https://dev.azure.com/someonehacking/OffensiveBuild/_apis/build/status%2Fv2%2F$(Build.DefinitionName)?branchName=azure-pipelines
+      --$boundary
+      Content-Disposition:  form-data; name="tool_name"
+      Content-Type: text/plain
+
+      $(Split-Path $newFilePath -leaf)
+      --$boundary--
+      "@
+
+        $headers = @{
+            "Content-Type" = "multipart/form-data; boundary=$boundary"
+            "Authorization" = "Bearer $($JsonData.access_token)"
+        }
+
+        # Send the request using Invoke-RestMethod
+        $response = Invoke-RestMethod -Uri $env:endpointUrl -Method Post -Body $body -Headers $headers
+        }
+      }
+  env:
+    client_id: $(client_id)
+    client_secret: $(client_secret)
+    audience: $(audience)
+    endpointUrl: $(endpointUrl)
+    authUrl: $(authUrl)
+
